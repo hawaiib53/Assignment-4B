@@ -1,62 +1,11 @@
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Meeting Summary Memo Content",
-  "description": "Structured content for build_memo.js. Populate this from the extracted meeting-notes and market-info text — never from outside knowledge.",
-  "type": "object",
-  "required": ["memoTitle", "memoDate", "meetings", "nextSteps"],
-  "properties": {
-    "memoTitle": { "type": "string" },
-    "preparedFor": { "type": "string" },
-    "preparedBy": { "type": "string" },
-    "memoDate": { "type": "string", "description": "YYYY-MM-DD" },
-    "meetings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["name", "summary", "actionItems"],
-        "properties": {
-          "name": { "type": "string" },
-          "date": { "type": "string", "description": "YYYY-MM-DD, if known" },
-          "attendees": { "type": "array", "items": { "type": "string" } },
-          "sourceFile": { "type": "string", "description": "Original filename this section was summarized from" },
-          "summary": { "type": "string", "description": "2-5 sentence plain-language summary of the meeting" },
-          "actionItems": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["item", "owner", "timeline"],
-              "properties": {
-                "item": { "type": "string" },
-                "owner": { "type": "string", "description": "Named individual or team; use 'Unassigned' if the notes don't specify one" },
-                "timeline": { "type": "string", "description": "Due date if stated, otherwise a relative timeframe or 'Not specified'" }
-              }
-            }
-          },
-          "marketConnections": {
-            "type": "object",
-            "properties": {
-              "sources": { "type": "array", "items": { "type": "string" }, "description": "market-info filenames this narrative draws on" },
-              "narrative": { "type": "string", "description": "How the uploaded market information relates to this meeting's topics. Omit/leave empty if no uploaded market info connects." }
-            }
-          }
-        }
-      }
-    },
-    "nextSteps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["step"],
-        "properties": {
-          "step": { "type": "string" },
-          "rationale": { "type": "string", "description": "Why this step follows from combining meeting discussion(s) with market information" }
-        }
-      }
-    },
-    "openQuestionsForReviewer": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Gaps, ambiguities, or judgment calls the human reviewer should confirm before final sign-off"
-    }
-  }
-}
+# Output folder
+
+Generated memos land here:
+
+- `DRAFT_<slug>.docx` — the draft produced first. Always review this before
+  anything is finalized; see the sign-off step in
+  `.claude/skills/meeting-summary-memo/SKILL.md`.
+- `FINAL_<slug>.docx` — only written after the operator explicitly accepts
+  the draft's contents.
+
+Generated files are not committed to source control (see `.gitignore`).
