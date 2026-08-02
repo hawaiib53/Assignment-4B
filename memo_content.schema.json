@@ -1,0 +1,98 @@
+---
+name: meeting-summary-memo
+description: "Use this skill to summarize one or more uploaded meeting-notes Word documents into a single memo with action items, owners, timelines, and market-informed next steps. Trigger on requests like 'summarize these meeting notes into a memo', 'combine these meeting docs into one summary', or '/meeting-summary-memo'. Only applies when the source material is meeting notes (and optionally market/industry research) supplied as local files — not for general document drafting."
+---
+
+# Meeting Summary Memo
+
+Turns a folder of meeting-notes Word documents (plus optional market/industry
+research documents) into a single Word memo: one summary per meeting, action
+items with owner and timeline, market context tied to each meeting, and a
+"suggested next steps" section that combines the meeting discussions with the
+market information.
+
+## Autonomy limits (must hold on every run)
+
+- **Never contact anyone.** Do not email, message, post, or otherwise send
+  the memo or any part of it through any channel. The only output is a local
+  `.docx` file.
+- **Only read from `inputs/meeting-notes/` and `inputs/market-info/`** (or
+  files the operator explicitly attaches to the session). Do not browse the
+  web, call an API, or pull market data from anywhere else — if the operator
+  wants a market fact in the memo, it must be in an uploaded document.
+- **Never skip the sign-off gate** (below). A `FINAL_*.docx` must never be
+  produced without an explicit accept from the operator in this session.
+
+## Workflow
+
+1. **Confirm inputs exist.** List `inputs/meeting-notes/` and
+   `inputs/market-info/`. If meeting-notes is empty, stop and ask the
+   operator to add `.docx`/`.doc` files there (or attach them to the
+   session and copy them in) — there is nothing to summarize otherwise.
+   Market info is optional; if empty, the memo simply won't have a Market
+   Context section for meetings (say this to the operator rather than
+   inventing market commentary).
+
+2. **Extract text.**
+   ```
+   bash .claude/skills/meeting-summary-memo/scripts/extract_text.sh .work/extracted
+   ```
+   This converts every source file to markdown under `.work/extracted/`,
+   prefixed `meeting-notes__*` or `market-info__*`. Read those files — not
+   the original `.docx` — to do the synthesis in the next step.
+
+3. **Synthesize the memo content.** For each `meeting-notes__*.md` file,
+   determine: a meeting name/date (from the content or filename), a 2-5
+   sentence summary, and every action item with its **owner** (a named
+   person/team — use `"Unassigned"` if the notes don't name one) and
+   **timeline** (a due date if stated, otherwise a relative timeframe or
+   `"Not specified"` — never invent a date). Then cross-reference the
+   `market-info__*.md` files for anything relevant to that meeting's topics
+   and write a short narrative connecting them, citing which market-info
+   file(s) it came from. Only draw on content actually present in the
+   extracted files — do not add outside knowledge, even if you're confident
+   it's true.
+
+   Write this out as a single JSON file (e.g. `.work/memo_content.json`)
+   matching `scripts/memo_content.schema.json`. Populate
+   `nextSteps` with steps whose `rationale` explicitly ties together at
+   least one meeting discussion point and at least one market-info point —
+   this is the "synergistic" next-steps requirement, not a generic to-do
+   list. Use `openQuestionsForReviewer` for anything ambiguous, missing an
+   owner/timeline, or that needed a judgment call — this is what the human
+   reviewer checks first.
+
+4. **Generate the draft.**
+   ```
+   node .claude/skills/meeting-summary-memo/scripts/build_memo.js \
+     .work/memo_content.json output/DRAFT_<slug>.docx draft
+   ```
+   (First run: `npm install docx` if `require('docx')` isn't already
+   resolvable — see the `docx` skill for this same note.) The draft is
+   watermarked "DRAFT — PENDING HUMAN REVIEW" in the header and body, and
+   ends with an explicit sign-off notice.
+
+5. **Stop for human sign-off.** Present the draft's contents (or the file)
+   to the operator and ask them to review it. Do not proceed to step 6
+   until the operator explicitly accepts the draft's contents in this
+   conversation. If they ask for changes, edit `memo_content.json` and
+   re-run step 4 — don't hand-edit the `.docx` directly.
+
+6. **Finalize, only after explicit acceptance.**
+   ```
+   node .claude/skills/meeting-summary-memo/scripts/build_memo.js \
+     .work/memo_content.json output/FINAL_<slug>.docx final
+   ```
+   This removes the draft watermark and adds an "Accepted by operator on"
+   line. This is the only step that may run after sign-off — nothing sends
+   or publishes the file anywhere; it's left in `output/` for the operator.
+
+## Files
+
+- `scripts/extract_text.sh` — converts every file in `inputs/meeting-notes/`
+  and `inputs/market-info/` to markdown (via `pandoc`, with `soffice` as a
+  `.doc`→`.docx` pre-step). No network access.
+- `scripts/memo_content.schema.json` — the structured-content contract
+  between synthesis (step 3) and rendering (steps 4/6).
+- `scripts/build_memo.js` — renders `memo_content.json` into a `.docx` via
+  the `docx` npm package, in `draft` or `final` mode.
